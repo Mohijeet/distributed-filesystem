@@ -3,17 +3,21 @@ package p2p
 import (
 	"fmt"
 	"net"
-	"sync"
 )
 
+type TCPTransportOpts struct {
+	ListenAddr    string
+	HandshakeFunc HandshakeFunc
+	Decoder       Decoder
+	OnPeer        func(Peer) error
+}
 type TCPTransport struct {
-	listenAddress string
-	listener      net.Listener
+	TCPTransportOpts
+	listener net.Listener
+	rpcchn   chan RPC
 
-	shakeHands HandshakeFunc
-	mu         sync.RWMutex
-	peers      map[net.Addr]Peer
-	decoder    Decoder
+	// mu    sync.RWMutex
+	// peers map[net.Addr]Peer
 }
 
 type TCPPeer struct {
@@ -31,16 +35,23 @@ func NewTCPPeer(conn net.Conn, outbound bool) *TCPPeer {
 	}
 }
 
-func NewTCPTransport(listenAddr string) *TCPTransport {
+func NewTCPTransport(opts TCPTransportOpts) *TCPTransport {
 	return &TCPTransport{
-		shakeHands:    NOPHandshakeFunc,
-		listenAddress: listenAddr,
+		TCPTransportOpts: opts,
+		rpcchn:           make(chan RPC),
 	}
 }
 
+func (p *TCPPeer) Close() error {
+	return p.conn.Close()
+}
+
+func (t *TCPTransport) Consume() <-chan RPC {
+	return t.rpcchn
+}
 func (t *TCPTransport) ListenAndAccept() error {
 	var err error
-	t.listener, err = net.Listen("tcp", t.listenAddress)
+	t.listener, err = net.Listen("tcp", t.ListenAddr)
 	if err != nil {
 		return err
 	}
@@ -55,6 +66,7 @@ func (t *TCPTransport) startAcceptLoop() {
 			fmt.Printf("tcp accept error %s\n", err)
 		}
 		go t.handleConn(conn)
+		fmt.Print("starting connection")
 	}
 }
 
@@ -62,18 +74,38 @@ type Temp struct{}
 
 func (t *TCPTransport) handleConn(conn net.Conn) {
 	peer := NewTCPPeer(conn, true)
+	var err error
+	defer func() {
+		fmt.Printf("ERROR %s\n", err)
+		conn.Close()
 
-	if err := t.shakeHands(conn); err != nil {
+	}()
 
+	if err = t.HandshakeFunc(peer); err != nil {
+		return
 	}
-	msg := &Temp{}
-	//read-loop
-	for {
 
-		if err := t.decoder.Decode(conn, msg); err != nil {
-			fmt.Printf("TCP error %s\n", err)
-			continue
+	if t.OnPeer != nil {
+
+		if err = t.OnPeer(peer); err != nil {
+			return
 		}
 	}
-	fmt.Printf("new incoming connection %+v\n", peer)
+
+	fmt.Printf("accepted new connection from %s\n", conn.RemoteAddr())
+	rpc := RPC{}
+
+	//read-loop
+	for {
+		if err := t.Decoder.Decode(conn, &rpc); err != nil {
+			fmt.Printf("TCP ERROR %s\n", err)
+			continue
+		}
+		rpc.FROM = conn.RemoteAddr()
+		//fmt.Printf("message %s\n ", rpc)
+
+		t.rpcchn <- rpc
+
+	}
+
 }
