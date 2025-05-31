@@ -44,6 +44,22 @@ type Store struct {
 	StoreOpts
 }
 
+var DefaultPathTransformFunc = func(key string) PathKey {
+	return PathKey{
+		PathName: key,
+		Filename: key,
+	}
+}
+
+func NewStore(opts StoreOpts) *Store {
+	if opts.pathTransformFunc == nil {
+		opts.pathTransformFunc = DefaultPathTransformFunc
+	}
+	return &Store{
+		StoreOpts: opts,
+	}
+}
+
 type PathKey struct {
 	PathName string
 	Filename string
