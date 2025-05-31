@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
@@ -28,7 +29,7 @@ func CASPathTransformFunc(key string) PathKey {
 	}
 	return PathKey{
 		PathName: strings.Join(paths, "/"),
-		Original: hashStr,
+		Filename: hashStr,
 	}
 
 }
@@ -43,33 +44,68 @@ type Store struct {
 	StoreOpts
 }
 
-var DefaultPathTransformFunc = func(key string) PathKey {
-	return PathKey{}
-}
-
-func NewStore(opts StoreOpts) *Store {
-	return &Store{
-		StoreOpts: opts,
-	}
-}
-
 type PathKey struct {
 	PathName string
-	Original string
+	Filename string
 }
 
-func (p PathKey) Filename() string {
-	return fmt.Sprintf("%s%s", p.PathName, p.Original)
+func (p PathKey) FullPath() string {
+	return fmt.Sprintf("%s/%s", p.PathName, p.Filename)
+}
+
+func (p PathKey) ReturnRootPath() string {
+	f := strings.Split(p.FullPath(), "/")
+
+	return f[0]
+}
+func (s *Store) Delete(key string) error {
+
+	pathKey := s.pathTransformFunc(key)
+
+	fmt.Printf("file path be deleted %v\n", pathKey.FullPath())
+	defer func() {
+		fmt.Printf("Deleted file %s\n", pathKey.Filename)
+	}()
+	//return os.RemoveAll(pathKey.FullPath())
+	return os.RemoveAll(pathKey.ReturnRootPath())
+
+}
+
+func (s *Store) Read(key string) (io.Reader, error) {
+	f, err := s.readStream(key)
+
+	if err != nil {
+		return nil, err
+	}
+
+	buff := new(bytes.Buffer)
+	defer f.Close()
+
+	_, err = io.Copy(buff, f)
+
+	return buff, err
+
+}
+func (s *Store) readStream(key string) (io.ReadCloser, error) {
+	pathKey := s.pathTransformFunc(key)
+
+	return os.Open(pathKey.FullPath())
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// // r := new(bytes.Buffer)
+	// // io.Copy(r, f)
+
 }
 
 func (s *Store) writeStream(key string, r io.Reader) error {
-	pathName := s.pathTransformFunc(key)
+	pathKey := s.pathTransformFunc(key)
 
-	if err := os.MkdirAll(pathName.PathName, os.ModePerm); err != nil {
+	if err := os.MkdirAll(pathKey.PathName, os.ModePerm); err != nil {
 		return err
 	}
 
-	pathAndFileName := pathName.Filename()
+	pathAndFileName := pathKey.FullPath()
 
 	f, err := os.Create(pathAndFileName)
 	if err != nil {
@@ -82,5 +118,6 @@ func (s *Store) writeStream(key string, r io.Reader) error {
 		return err
 	}
 	fmt.Printf("copied bytes %v, %s", n, pathAndFileName)
+
 	return nil
 }
