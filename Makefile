@@ -1,9 +1,10 @@
 build:
-	//@go build -o bin/fs
+	@go build -o bin/fs
+	# run
 	@go run main.go
 
 run:
-	@./bin/fs
+	@go run .
 
 test:
 	@go test ./... -v

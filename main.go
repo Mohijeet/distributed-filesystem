@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/mohijeet/distributed-filesystem/p2p"
 )
@@ -17,21 +18,33 @@ func main() {
 		ListenAddr:    ":3000",
 		HandshakeFunc: p2p.NOPHandshakeFunc,
 		Decoder:       p2p.DefaultDecoder{},
-		OnPeer:        OnPeer,
+		//OnPeer:        OnPeer,
 	}
-	tr := p2p.NewTCPTransport(tcpOpts)
-	err := tr.ListenAndAccept()
 
+	tcpTransport := p2p.NewTCPTransport(tcpOpts)
+
+	// go func() {
+	// 	for {
+	// 		resp := <-tr.Consume()
+	// 		fmt.Printf("printing channel %s\n", resp)
+	// 	}
+
+	// }()
+
+	FileServerOpts := FileServerOpts{
+		StorageRoot:       "3000_server",
+		PathTransformFunc: CASPathTransformFunc,
+		Transport:         tcpTransport,
+	}
+
+	s := NewFileServer(FileServerOpts)
 	go func() {
-		for {
-			resp := <-tr.Consume()
-			fmt.Printf("printing channel %s\n", resp)
-		}
-
+		time.Sleep(time.Second * 2)
+		s.Stop()
 	}()
-	if err != nil {
+
+	if err := s.Start(); err != nil {
 		log.Fatal(err)
 	}
 
-	select {}
 }

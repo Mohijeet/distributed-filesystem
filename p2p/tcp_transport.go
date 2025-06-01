@@ -1,7 +1,9 @@
 package p2p
 
 import (
+	"errors"
 	"fmt"
+	"log"
 	"net"
 )
 
@@ -49,6 +51,9 @@ func (p *TCPPeer) Close() error {
 func (t *TCPTransport) Consume() <-chan RPC {
 	return t.rpcchn
 }
+func (t *TCPTransport) Close() error {
+	return t.listener.Close()
+}
 func (t *TCPTransport) ListenAndAccept() error {
 	var err error
 	t.listener, err = net.Listen("tcp", t.ListenAddr)
@@ -56,12 +61,16 @@ func (t *TCPTransport) ListenAndAccept() error {
 		return err
 	}
 	go t.startAcceptLoop()
+	log.Printf("\n *** TCP SERVER STARTING ON PORT %s ***\n ", t.ListenAddr)
 	return nil
 }
 
 func (t *TCPTransport) startAcceptLoop() {
 	for {
 		conn, err := t.listener.Accept()
+		if errors.Is(err, net.ErrClosed) {
+			return
+		}
 		if err != nil {
 			fmt.Printf("tcp accept error %s\n", err)
 		}
