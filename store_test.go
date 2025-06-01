@@ -15,7 +15,7 @@ import (
 //	}
 func TestStore(t *testing.T) {
 	opts := StoreOpts{
-		pathTransformFunc: CASPathTransformFunc,
+		PathTransformFunc: CASPathTransformFunc,
 	}
 	key := "somekey"
 	print("writing data")
@@ -25,12 +25,8 @@ func TestStore(t *testing.T) {
 	if err := s.writeStream(key, data); err != nil {
 		t.Error(err)
 	}
-	// func TestReadStore(t *testing.T) {
-	// 	opts := StoreOpts{
-	// 		pathTransformFunc: CASPathTransformFunc,
-	// 	}
-	// 	s := NewStore(opts)
-	print("reading data")
+
+	fmt.Printf("\n reading data\n")
 	readData, err := s.readStream(key)
 	if err != nil {
 		t.Error(err)
@@ -45,21 +41,35 @@ func TestStore(t *testing.T) {
 		t.Errorf("expected %s, received %s", writeString, readString)
 
 	}
-	fmt.Print("here is expected data", string(readString))
+	fmt.Print("Data is as expected : \n", string(readString))
 
-	// }
 }
 
 func TestDeleteFile(t *testing.T) {
 	opts := StoreOpts{
-		pathTransformFunc: CASPathTransformFunc,
+		PathTransformFunc: CASPathTransformFunc,
 	}
 	key := "somekey"
 
 	s := NewStore(opts)
 
 	if err := s.Delete(key); err != nil {
-		t.Error()
+		t.Error(err)
+	}
+
+}
+
+func TestFileExist(t *testing.T) {
+	opts := StoreOpts{
+		PathTransformFunc: CASPathTransformFunc,
+	}
+	key := "somekey"
+
+	s := NewStore(opts)
+
+	if ok := s.StateFile(key); !ok {
+		t.Error("file does not exists")
+
 	}
 
 }
